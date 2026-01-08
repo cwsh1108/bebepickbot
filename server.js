@@ -77,7 +77,7 @@ setInterval(async () => {
   } catch (e) {
     console.error(e.message);
   }
-}, 180000);
+}, 5000);
 
 app.listen(3000, () => {
   console.log("bebepick bot running");
