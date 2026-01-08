@@ -1,15 +1,16 @@
+// server.js (이것 하나만 사용 / bot.js 삭제)
+
 import express from "express";
 import { google } from "googleapis";
 
 const app = express();
 app.use(express.json());
 
-/* =======================
-   LIST 관리
-======================= */
 let LIST = "";
 
-// 엑셀 → 서버
+/* =====================
+   엑셀 → 서버
+===================== */
 app.post("/updateList", (req, res) => {
   const incoming = (req.body.list || "").trim();
   if (!incoming) {
@@ -17,24 +18,19 @@ app.post("/updateList", (req, res) => {
     return res.json({ ok: true });
   }
 
-  const arr = incoming
-    .split("|")
-    .map(v => v.trim())
-    .filter(Boolean);
-
-  const sliced = arr.slice(-20);
-  LIST = sliced.join(" → ");
+  const arr = incoming.split("|").map(v => v.trim()).filter(Boolean);
+  LIST = arr.slice(-20).join(" → ");
   res.json({ ok: true });
 });
 
-// 확인용
+/* 확인용 */
 app.get("/list", (req, res) => {
   res.json({ list: LIST });
 });
 
-/* =======================
-   YouTube OAuth
-======================= */
+/* =====================
+   유튜브 봇
+===================== */
 const oauth2Client = new google.auth.OAuth2(
   process.env.CLIENT_ID,
   process.env.CLIENT_SECRET
@@ -49,9 +45,6 @@ const youtube = google.youtube({
   auth: oauth2Client
 });
 
-/* =======================
-   Live Chat
-======================= */
 async function getLiveChatId() {
   const res = await youtube.liveBroadcasts.list({
     part: ["snippet"],
@@ -59,11 +52,14 @@ async function getLiveChatId() {
     mine: true
   });
 
-  if (!res.data.items || !res.data.items.length) return null;
+  if (!res.data.items || res.data.items.length === 0) return null;
   return res.data.items[0].snippet.liveChatId;
 }
 
-async function sendChat(liveChatId, text) {
+async function sendChat(text) {
+  const liveChatId = await getLiveChatId();
+  if (!liveChatId) return;
+
   await youtube.liveChatMessages.insert({
     part: ["snippet"],
     requestBody: {
@@ -78,30 +74,20 @@ async function sendChat(liveChatId, text) {
   });
 }
 
-/* =======================
-   채팅 전송 루프
-======================= */
-let LAST_SENT = "";
-
+/* 5초마다 채팅 */
 setInterval(async () => {
-  if (!LIST || LIST === LAST_SENT) return;
-
+  if (!LIST) return;
   try {
-    const liveChatId = await getLiveChatId();
-    if (!liveChatId) return;
-
-    const msg = `베베픽봇: ${LIST}`;
-    await sendChat(liveChatId, msg);
-    LAST_SENT = LIST;
+    await sendChat(`베베픽봇: ${LIST}`);
   } catch (e) {
     console.error(e.message);
   }
-}, 180000); // 3분
+}, 5000);
 
-/* =======================
-   Server
-======================= */
+/* =====================
+   Render 포트
+===================== */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log("bebepick bot running on port", PORT);
+  console.log("bebepick bot running");
 });
