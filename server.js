@@ -16,4 +16,4 @@ setInterval(async () => {
   } catch (e) {
     console.error("채팅 전송 실패", e.message);
   }
-}, 10000);
+}, 30000);
