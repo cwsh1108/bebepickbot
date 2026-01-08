@@ -1,37 +1,27 @@
 const { google } = require("googleapis");
-
-const oauth2Client = new google.auth.OAuth2(
-  process.env.CLIENT_ID,
-  process.env.CLIENT_SECRET
-);
-
-oauth2Client.setCredentials({
-  refresh_token: process.env.REFRESH_TOKEN
-});
+const axios = require("axios");
 
 const youtube = google.youtube({
   version: "v3",
-  auth: oauth2Client
+  auth: new google.auth.OAuth2(
+    process.env.CLIENT_ID,
+    process.env.CLIENT_SECRET
+  )
 });
 
-let liveChatId = null;
+youtube._options.auth.setCredentials({
+  refresh_token: process.env.REFRESH_TOKEN
+});
 
-async function getLiveChatId() {
-  const res = await youtube.liveBroadcasts.list({
-    part: "snippet",
-    mine: true,
-    broadcastStatus: "active"
-  });
-  liveChatId = res.data.items?.[0]?.snippet?.liveChatId || null;
-}
+const LIVE_CHAT_ID = process.env.LIVE_CHAT_ID;
+let lastSent = "";
 
-async function sendMessage(text) {
-  if (!liveChatId) return;
+async function postMessage(text) {
   await youtube.liveChatMessages.insert({
-    part: "snippet",
+    part: ["snippet"],
     requestBody: {
       snippet: {
-        liveChatId,
+        liveChatId: LIVE_CHAT_ID,
         type: "textMessageEvent",
         textMessageDetails: { messageText: text }
       }
@@ -40,15 +30,18 @@ async function sendMessage(text) {
 }
 
 async function tick() {
-  await getLiveChatId();
-  if (!liveChatId) return;
+  try {
+    const res = await axios.get("https://bebepickbot.onrender.com/list");
+    const text = res.data.list;
 
-  const res = await fetch("https://bebepickbot.onrender.com/list");
-  const data = await res.json();
+    if (!text || text === lastSent) return;
 
-  if (!data.list) return; // 빈 리스트면 정지
-
-  await sendMessage(`베베픽봇: ${data.list}`);
+    lastSent = text;
+    await postMessage(`베베픽봇: ${text}`);
+  } catch (e) {
+    console.error(e.message);
+  }
 }
 
-setInterval(tick, 3 * 60 * 1000); // 3분
+// 3분마다 실행
+setInterval(tick, 3 * 60 * 1000);
