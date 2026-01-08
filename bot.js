@@ -44,4 +44,4 @@ async function tick() {
 }
 
 // 3분마다 실행
-setInterval(tick, 3 * 60 * 10);
+setInterval(tick, 3 * 60 * 1);
