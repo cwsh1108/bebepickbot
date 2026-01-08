@@ -1,10 +1,12 @@
 import express from "express";
-import fetch from "node-fetch";
 import { google } from "googleapis";
 
 const app = express();
 app.use(express.json());
 
+/* =======================
+   LIST 관리
+======================= */
 let LIST = "";
 
 // 엑셀 → 서버
@@ -15,7 +17,11 @@ app.post("/updateList", (req, res) => {
     return res.json({ ok: true });
   }
 
-  const arr = incoming.split("|").map(v => v.trim()).filter(Boolean);
+  const arr = incoming
+    .split("|")
+    .map(v => v.trim())
+    .filter(Boolean);
+
   const sliced = arr.slice(-20);
   LIST = sliced.join(" → ");
   res.json({ ok: true });
@@ -26,7 +32,9 @@ app.get("/list", (req, res) => {
   res.json({ list: LIST });
 });
 
-// ===== 유튜브 봇 =====
+/* =======================
+   YouTube OAuth
+======================= */
 const oauth2Client = new google.auth.OAuth2(
   process.env.CLIENT_ID,
   process.env.CLIENT_SECRET
@@ -41,6 +49,9 @@ const youtube = google.youtube({
   auth: oauth2Client
 });
 
+/* =======================
+   Live Chat
+======================= */
 async function getLiveChatId() {
   const res = await youtube.liveBroadcasts.list({
     part: ["snippet"],
@@ -48,7 +59,7 @@ async function getLiveChatId() {
     mine: true
   });
 
-  if (!res.data.items?.length) return null;
+  if (!res.data.items || !res.data.items.length) return null;
   return res.data.items[0].snippet.liveChatId;
 }
 
@@ -59,26 +70,38 @@ async function sendChat(liveChatId, text) {
       snippet: {
         liveChatId,
         type: "textMessageEvent",
-        textMessageDetails: { messageText: text }
+        textMessageDetails: {
+          messageText: text
+        }
       }
     }
   });
 }
 
-// 3분마다 채팅
+/* =======================
+   채팅 전송 루프
+======================= */
+let LAST_SENT = "";
+
 setInterval(async () => {
-  if (!LIST) return;
+  if (!LIST || LIST === LAST_SENT) return;
 
   try {
     const liveChatId = await getLiveChatId();
     if (!liveChatId) return;
 
-    await sendChat(liveChatId, `베베픽봇: ${LIST}`);
+    const msg = `베베픽봇: ${LIST}`;
+    await sendChat(liveChatId, msg);
+    LAST_SENT = LIST;
   } catch (e) {
     console.error(e.message);
   }
-}, 5000);
+}, 180000); // 3분
 
-app.listen(3000, () => {
-  console.log("bebepick bot running");
+/* =======================
+   Server
+======================= */
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log("bebepick bot running on port", PORT);
 });
